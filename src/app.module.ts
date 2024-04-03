@@ -21,6 +21,9 @@ import { EvaluateModule } from './modules/evaluate/evaluate.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RecordModule } from './modules/record/record.module';
+import { PartnerModule } from './modules/partner/partner.module';
+import { PartnerGuard } from './guards/partner.guard';
+import { APP_GUARD } from '@nestjs/core';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -110,11 +113,17 @@ import { RecordModule } from './modules/record/record.module';
     CustomerAddressModule,
     EvaluateModule,
     OrdersModule,
+    PartnerModule,
     // 定时任务配置
     ScheduleModule.forRoot(),
     RecordModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: PartnerGuard,
+    },
+  ],
 })
 export class AppModule {}
