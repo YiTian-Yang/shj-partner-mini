@@ -4,7 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerAddressController } from './customer-address.controller';
 import ShjCustomerAddress from 'src/entities/partner/user/customer-address.entity';
 @Module({
-  imports: [TypeOrmModule.forFeature([ShjCustomerAddress], 'base')],
+  imports: [TypeOrmModule.forFeature([ShjCustomerAddress], 'partner')],
   controllers: [CustomerAddressController],
   providers: [CustomerAddressService],
 })
