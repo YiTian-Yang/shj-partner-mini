@@ -12,7 +12,7 @@ import { ApiException } from 'src/common/exceptions/api.exception';
 @Injectable()
 export class CustomerAddressService {
   constructor(
-    @InjectRepository(ShjCustomerAddress, 'base')
+    @InjectRepository(ShjCustomerAddress, 'partner')
     private readonly shjCustomerAddress: Repository<ShjCustomerAddress>,
   ) {}
 
