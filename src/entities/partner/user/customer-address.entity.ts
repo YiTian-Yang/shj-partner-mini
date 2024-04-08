@@ -35,8 +35,4 @@ export default class ShjCustomerAddress extends BaseEntity {
   @Column({ name: 'user_id' })
   @ApiProperty()
   userId: string;
-
-  @Column({ name: 'partner_id', comment: '合作商ID' })
-  @ApiProperty()
-  partnerId: number;
 }
