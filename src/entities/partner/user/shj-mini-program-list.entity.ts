@@ -27,8 +27,4 @@ export default class ShjMiniProgramList extends BaseEntity {
   @Column({ nullable: true, type: 'varchar', name: 'parent_id' })
   @ApiProperty()
   parentId: string;
-
-  @Column({ name: 'partner_id', comment: '合作商ID' })
-  @ApiProperty()
-  partnerId: number;
 }

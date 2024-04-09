@@ -90,15 +90,4 @@ export class OrdersController {
   saveCancelReason(@Body() Body) {
     return this.ordersService.saveCancelReason(Body);
   }
-
-  // @ApiOperation({ summary: '获取用户订单数量' })
-  @Post('/receiveSfPushRoute')
-  receiveSfPushRoute(@Body() params) {
-    return this.ordersService.receiveSfPushRoute(params);
-  }
-
-  @Post('/receiveSfPushOrder')
-  receiveSfPushOrder(@Body() params) {
-    return this.ordersService.receiveSfPushOrder(params);
-  }
 }

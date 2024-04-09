@@ -99,7 +99,7 @@ export class PlatformService {
   // 处理支付宝手机号解密
   async ali_loginWithPhone(code) {
     // 解密手机号
-    let key: any = 'Z8ONmVisCXzTuFUbgqmHDw=='; // 解密的key
+    let key: any = 'O481Wd6xkIPtk4gJSAM8hg=='; // 解密的key
     let crypted = code; // 密文
     crypted = Buffer.from(crypted, 'base64').toString('binary');
     key = Buffer.from(key, 'base64');
@@ -126,7 +126,7 @@ export class PlatformService {
       try {
         const res = await axios({
           method: 'POST',
-          url: 'https://api.suhuanji.com/prod/login/getWxTokenOnline',
+          url: 'https://api.suhuanji.com/partner/prod/login/getWxTokenOnline',
         });
         return res?.data?.data;
       } catch (error) {

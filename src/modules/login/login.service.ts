@@ -9,6 +9,7 @@ import { RedisService } from 'src/shared/services/redis.service';
 import ShjMiniProgramList from 'src/entities/partner/user/shj-mini-program-list.entity';
 import ShjPlatformUser from 'src/entities/partner/user/shj-platform-user.entity';
 import { ApiException } from 'src/common/exceptions/api.exception';
+import { PartnerService } from '../partner/partner.service';
 
 @Injectable()
 export class LoginService {
@@ -21,6 +22,7 @@ export class LoginService {
     private platformService: PlatformService,
     private redisService: RedisService,
     private jwtService: JwtService,
+    private partnerService: PartnerService,
   ) {}
   // 处理小程序登录
   async login(channel: string, loginDto: LoginDto) {
@@ -32,7 +34,7 @@ export class LoginService {
   }
 
   // 手机号登录处理
-  async loginWithPhone(loginWithPhoneDto) {
+  async loginWithPhone(loginWithPhoneDto, header) {
     console.log('phoneNumberDto', loginWithPhoneDto);
     let userInfo;
     if (loginWithPhoneDto.channel === 'weixin') {
@@ -40,20 +42,25 @@ export class LoginService {
       const res = await this.platformService.wx_loginWithPhone(
         loginWithPhoneDto.code,
       );
-      if (res.phone_info && res.phone_info.phoneNumber) {
-        userInfo = await this.userRegister(
-          res.phone_info.phoneNumber,
-          channel,
-          loginWithPhoneDto,
-        );
-      }
+      // if (res.phone_info && res.phone_info.phoneNumber) {
+      //   userInfo = await this.userRegister(
+      //     res.phone_info.phoneNumber,
+      //     channel,
+      //     loginWithPhoneDto,
+      //   );
+      // }
     } else if (loginWithPhoneDto.channel === 'alipay') {
       const channel = '支付宝';
       const res = await this.platformService.ali_loginWithPhone(
         loginWithPhoneDto.code,
       );
       if (res && res.length) {
-        userInfo = await this.userRegister(res, channel, loginWithPhoneDto);
+        userInfo = await this.userRegister(
+          res,
+          channel,
+          header['partner-key'],
+          loginWithPhoneDto,
+        );
       }
     }
     if (userInfo && userInfo.userId) {
@@ -73,7 +80,12 @@ export class LoginService {
   }
 
   // 用户注册
-  async userRegister(phoneNumber: string, channel: string, loginWithPhoneDto) {
+  async userRegister(
+    phoneNumber: string,
+    channel: string,
+    partnerKey: string,
+    loginWithPhoneDto,
+  ) {
     const userInfo = await this.shjPlatformUser.findOne({
       where: {
         userPhone: phoneNumber,
@@ -101,11 +113,13 @@ export class LoginService {
     }
     const user = new ShjPlatformUser();
     user.userId = this.utilsService.generateRandomValue(
-      21,
+      20,
       '1234567890abcdefg',
     );
+    const partnerInfo = await this.partnerService.getPartnerInfo(partnerKey);
     user.registrationChannel = channel;
     user.userPhone = phoneNumber;
+    user.partnerId = partnerInfo.id;
     const result = await this.shjPlatformUser.save(user);
     await this.createPlatformInfo(channel, loginWithPhoneDto, user.userId);
     return {

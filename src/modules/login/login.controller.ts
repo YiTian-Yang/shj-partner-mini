@@ -11,8 +11,11 @@ export class LoginController {
   }
 
   @Post('loginWithPhone')
-  loginWithPhone(@Body() loginWithPhoneDto: LoginWithPhoneDto) {
-    return this.loginService.loginWithPhone(loginWithPhoneDto);
+  loginWithPhone(
+    @Body() loginWithPhoneDto: LoginWithPhoneDto,
+    @Headers() header,
+  ) {
+    return this.loginService.loginWithPhone(loginWithPhoneDto, header);
   }
 
   @Post('logOut')

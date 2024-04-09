@@ -18,6 +18,7 @@ import {
   PaymentType,
   OrderChannelImplication,
   ExpressStatus,
+  OrderType,
 } from 'src/entities/base/order/enum';
 import ShjMiniProgramList from 'src/entities/partner/user/shj-mini-program-list.entity';
 import { JwtService } from '@nestjs/jwt';
@@ -32,6 +33,7 @@ import { SmsService } from 'src/shared/services/sms.service';
 import ShjGoodBrandEntity from 'src/entities/base/good/shj-good-brand.entity';
 import ShjGoodTypeEntity from 'src/entities/base/good/shj-good-type.entity';
 import { multiply, subtract } from 'mathjs';
+import { PartnerService } from '../partner/partner.service';
 import axios from 'axios';
 @Injectable()
 export class OrdersService {
@@ -59,6 +61,7 @@ export class OrdersService {
     private redisService: RedisService,
     private alipayOrderService: AlipayOrderService,
     private logger: LoggerService,
+    private partnerService: PartnerService,
   ) {}
   async create(createOrderDto: CreateOrderDto, headers) {
     const token = await this.jwtService.verify(headers.token);
@@ -91,19 +94,23 @@ export class OrdersService {
     // if (SfOrderData.success !== true || SfOrderData.errorCode !== 'S0000') {
     //   throw new ApiException(10002);
     // }
-    enum orderChannelEnum {
-      weixin = 'C_Weixin',
-      alipay = 'C_Alipay',
-      tiktok = 'C_Tiktok',
-    }
-    const originChannel: string = orderChannelEnum[headers.channel];
+    // enum orderChannelEnum {
+    //   weixin = 'C_Weixin',
+    //   alipay = 'C_Alipay',
+    //   tiktok = 'C_Tiktok',
+    // }
+    // const originChannel: string = orderChannelEnum[headers.channel];
+    const partnerInfo = await this.partnerService.getPartnerInfo(
+      headers['partner-key'],
+    );
     const order = await this.OrderRep.create({
       orderId: completeId,
       orderTime: dayjs(new Date()) + '',
-      orderType: createOrderDto.orderType ? +createOrderDto.orderType : 0,
+      orderType: OrderType.Recycle,
       orderStatus: OrderStatus.PendingPickup,
-      orderChannel: OrderChannel[originChannel],
+      orderChannel: OrderChannel.C_Partner,
       userId: token.uid,
+      thirdChannelId: partnerInfo.id,
     });
 
     const payment = await this.PaymentRep.create({
@@ -181,167 +188,27 @@ export class OrdersService {
 
   async getOrdersBypage(params: GetOrderByPageDto, headers) {
     const token = await this.jwtService.verify(headers.token);
-    const { limit, page, orderStatus } = params;
-    const offset = multiply(limit, subtract(page, 1));
-    if (orderStatus === '') {
-      const queryResult: [] = await this.OrderRep.query(
-        `SELECT
-                orders.order_id,
-                orders.order_status,
-                orders.created_at,
-                product.category_id,
-                product.quote_price,
-                product.valuation_price,
-                product.valuation_details,
-                0 AS is_onsite,
-                orders.is_deleted
-              FROM
-                shj_orders AS orders
-                LEFT JOIN shj_product_info AS product ON product.id = orders.productInfoId 
-              WHERE 
-                orders.user_id = '${token.uid}' UNION
-              SELECT
-                orders.order_id,
-                orders.c_order_status AS order_status,
-                orders.created_at,
-                product.category_id,
-                product.quote_price,
-                product.valuation_price,
-                product.valuation_details,
-                1 AS is_onsite,
-                orders.is_deleted
-              FROM
-                shj_onsite_order AS orders
-                LEFT JOIN shj_onsite_product AS product ON product.id = orders.onsiteProductId 
-              WHERE 
-                orders.user_id = '${token.uid}'
-              AND
-                orders.is_deleted = 0
-              ORDER BY
-                created_at DESC
-                LIMIT ${limit} OFFSET ${offset};`,
+    const where = params.orderStatus
+      ? { orderStatus: +params.orderStatus, userId: token.uid }
+      : { userId: token.uid };
+    const [orders, count] = await this.OrderRep.findAndCount({
+      relations: ['productInfo'],
+      where,
+      skip: (params.page - 1) * params.limit,
+      take: params.limit,
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+    for (const item of orders) {
+      item.productInfo.valuationDetails = JSON.parse(
+        item.productInfo.valuationDetails,
       );
-      const result = queryResult.map((item) => {
-        return {
-          orderStatus: item['order_status'],
-          productInfo: {
-            valuationDetails: JSON.parse(item['valuation_details']),
-            categoryId: parseInt(item['category_id']),
-            valuationPrice: item['valuation_price'],
-            quotePrice: item['quote_price'],
-          },
-          orderId: item['order_id'],
-          isOnsite: !!parseInt(item['is_onsite']),
-        };
-      });
-      const totalList = await this.OrderRep.query(
-        `SELECT
-                  SUM( total ) AS total 
-                FROM
-                  (
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_orders AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' UNION
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_onsite_order AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                  AND
-                    orders.is_deleted = 0
-                  ) AS counts;`,
-      );
-      return {
-        list: result,
-        count: parseInt(totalList[0].total),
-      };
     }
-    if (orderStatus) {
-      const queryResult: [] = await this.OrderRep.query(
-        `SELECT
-                orders.order_id,
-                orders.order_status,
-                orders.created_at,
-                product.category_id,
-                product.quote_price,
-                product.valuation_price,
-                product.valuation_details,
-                0 AS is_onsite,
-                orders.is_deleted
-              FROM
-                shj_orders AS orders
-                LEFT JOIN shj_product_info AS product ON product.id = orders.productInfoId 
-              WHERE 
-                orders.user_id = '${token.uid}' 
-                AND orders.order_status = '${orderStatus}' UNION
-              SELECT
-                orders.order_id,
-                orders.c_order_status AS order_status,
-                orders.created_at,
-                product.category_id,
-                product.quote_price,
-                product.valuation_price,
-                product.valuation_details,
-                1 AS is_onsite,
-                orders.is_deleted
-              FROM
-                shj_onsite_order AS orders
-                LEFT JOIN shj_onsite_product AS product ON product.id = orders.onsiteProductId 
-              WHERE 
-                orders.user_id = '${token.uid}' 
-                AND orders.c_order_status = '${orderStatus}'
-              AND
-                 orders.is_deleted = 0
-              ORDER BY
-                created_at DESC
-                LIMIT ${limit} OFFSET ${offset};`,
-      );
-      const result = queryResult.map((item) => {
-        return {
-          orderStatus: item['order_status'],
-          productInfo: {
-            valuationDetails: JSON.parse(item['valuation_details']),
-            categoryId: parseInt(item['category_id']),
-            valuationPrice: item['valuation_price'],
-            quotePrice: item['quote_price'],
-          },
-          orderId: item['order_id'],
-          isOnsite: !!parseInt(item['is_onsite']),
-        };
-      });
-      const totalList = await this.OrderRep.query(
-        `SELECT
-                  SUM( total ) AS total 
-                FROM
-                  (
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_orders AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                    AND orders.order_status = '${orderStatus}' UNION
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_onsite_order AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                  AND 
-                    orders.c_order_status = '${orderStatus}' 
-                  AND 
-                    orders.is_deleted = 0   
-                  ) AS counts;`,
-      );
-      return {
-        list: result,
-        count: parseInt(totalList[0].total),
-      };
-    }
+    return {
+      list: orders,
+      count,
+    };
   }
 
   async cancelOrder(params: ChangeStatusDto) {
@@ -620,55 +487,19 @@ export class OrdersService {
     const countData = {};
     for (const value of Object.values(OrderStatus)) {
       if (!isNaN(+value)) {
-        const totalList = await this.OrderRep.query(
-          `SELECT
-                  SUM( total ) AS total 
-                FROM
-                  (
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_orders AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                    AND orders.order_status = '${+value}' UNION
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_onsite_order AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                  AND 
-                    orders.c_order_status = '${+value}' 
-                  AND 
-                    orders.is_deleted = 0                    
-                  ) AS counts;`,
-        );
-        countData[OrderStatus[value]] = parseInt(totalList[0].total);
+        countData[OrderStatus[value]] = await this.OrderRep.count({
+          where: {
+            userId: token.uid,
+            orderStatus: +value,
+          },
+        });
       }
     }
-    const allTotalList = await this.OrderRep.query(
-      `SELECT
-                  SUM( total ) AS total 
-                FROM
-                  (
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_orders AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' UNION
-                  SELECT
-                    COUNT(*) AS total 
-                  FROM
-                    shj_onsite_order AS orders 
-                  WHERE
-                    orders.user_id = '${token.uid}' 
-                  AND 
-                    orders.is_deleted = 0                    
-                  ) AS counts;`,
-    );
-    countData['all'] = parseInt(allTotalList[0].total);
+    countData['all'] = await this.OrderRep.count({
+      where: {
+        userId: token.uid,
+      },
+    });
     return countData;
   }
   /**
@@ -686,300 +517,6 @@ export class OrdersService {
       },
     );
   }
-  // 路由推送接口
-  async receiveSfPushRoute(params) {
-    this.logger.log({
-      message: 'sf_order_route_push',
-      data: params.Body.WaybillRoute,
-    });
-    try {
-      const orderInfo = await this.OrderRep.createQueryBuilder('order')
-        .innerJoinAndSelect('order.pickupInfo', 'pickupInfo')
-        .leftJoinAndSelect('order.productInfo', 'productInfo')
-        .leftJoinAndSelect('order.paymentInfo', 'paymentInfo')
-        .where('pickupInfo.sfId = :sfId', {
-          sfId: params.Body.WaybillRoute[0].orderid,
-        })
-        .getOne();
-      const isBSfId = params.Body.WaybillRoute[0].orderid.indexOf('SHJB');
-      if (
-        (params.Body.WaybillRoute[0].opCode == '50' ||
-          params.Body.WaybillRoute[0].opCode == '54') &&
-        isBSfId != -1
-      ) {
-        const url =
-          process.env.SF_ENV == 'sbox'
-            ? 'https://api.suhuanji.com/business/test/business-order/receiveSfPushMsg'
-            : 'https://api.suhuanji.com/business/prod/business-order/receiveSfPushMsg';
-        await axios({
-          headers: {
-            secret: 'shj7lk7cb0b68b351e8',
-          },
-          method: 'Post',
-          url: url,
-          data: {
-            sfId: params.Body.WaybillRoute[0].orderid,
-          },
-        });
-        return {
-          return_code: '0000',
-          return_msg: '成功',
-        };
-      }
-      if (
-        (params.Body.WaybillRoute[0].opCode == '50' ||
-          params.Body.WaybillRoute[0].opCode == '54') &&
-        orderInfo.orderStatus == OrderStatus.PendingPickup
-      ) {
-        orderInfo.orderStatus = OrderStatus.WaitingQuote;
-        const productCode =
-          'P' +
-          dayjs(new Date()).format('YYMMDDHH') +
-          this.utils.generateRandomValue(8, '1234567890');
-        const orderData = await this.OrderRep.save(orderInfo);
-      }
-      // 用户主动或顺丰取消订单
-      // if (
-      //   params.Body.WaybillRoute[params.Body.WaybillRoute.length - 1].opCode ==
-      //     '70' &&
-      //   orderInfo.orderStatus == OrderStatus.PendingPickup
-      // ) {
-      //   orderInfo.orderStatus = OrderStatus.Cancelled;
-      //   if (orderInfo.thirdChannelId) {
-      //     try {
-      //       await this.utils.callbackForOrderChange(orderInfo.thirdChannelId, {
-      //         orderId: orderInfo.orderId,
-      //         status: 'CANCELLED',
-      //         msg: {
-      //           orderStatus: orderInfo.orderStatus,
-      //         },
-      //       });
-      //     } catch (error) {
-      //       this.logger.error(error);
-      //     }
-      //   }
-      //   await this.OrderRep.save(orderInfo);
-      // }
-      return {
-        success: 'true',
-        data: {
-          orderId: orderInfo.orderId,
-          orderStatus: orderInfo.orderStatus,
-        },
-      };
-    } catch (error) {
-      this.logger.error(error);
-      return {
-        message: 'push_err_msg',
-        error: error,
-      };
-    }
-  }
-  // 订单状态推送
-  async receiveSfPushOrder(params) {
-    this.logger.log({
-      message: 'sf_order_status_push',
-      data: params.orderState,
-    });
-    try {
-      const orderInfo = await this.OrderRep.createQueryBuilder('order')
-        .innerJoinAndSelect('order.pickupInfo', 'pickupInfo')
-        .leftJoinAndSelect('order.productInfo', 'productInfo')
-        .leftJoinAndSelect('order.paymentInfo', 'paymentInfo')
-        .where('pickupInfo.sfId = :sfId', {
-          sfId: params.orderState[0].orderNo,
-        })
-        .getOne();
-      if (
-        params.orderState[0].orderStateCode == '05-40003' &&
-        orderInfo.orderStatus == OrderStatus.PendingPickup
-      ) {
-        orderInfo.orderStatus = OrderStatus.WaitingQuote;
-        const productCode =
-          'P' +
-          dayjs(new Date()).format('YYMMDDHH') +
-          this.utils.generateRandomValue(8, '1234567890');
-        const orderData = await this.OrderRep.save(orderInfo);
-      }
-      // 用户主动或顺丰取消订单
-      if (
-        (params.orderState[0].orderStateCode == '04-40002-40014' ||
-          params.orderState[0].orderStateCode == '00-2000' ||
-          params.orderState[0].orderStateCode == '00-40045-1000') &&
-        orderInfo.orderStatus == OrderStatus.PendingPickup
-      ) {
-        orderInfo.orderStatus = OrderStatus.Cancelled;
-        const orderData = this.OrderRep.save(orderInfo);
-      }
-      return {
-        success: 'true',
-        data: {
-          orderId: orderInfo.orderId,
-          orderStatus: orderInfo.orderStatus,
-        },
-      };
-    } catch (error) {
-      this.logger.error(error);
-      return {
-        message: 'push_err_msg',
-        error: error,
-      };
-    }
-  }
-
-  async expressStatusChange() {
-    const orderList = await this.OrderRep.find({
-      where: {
-        orderStatus: OrderStatus.PendingPickup,
-      },
-      relations: ['pickupInfo'],
-    });
-    if (orderList.length) {
-      for (const item of orderList) {
-        try {
-          const routerData = await this.sfService.getSfRouters({
-            searchType: 2,
-            searchId: item.pickupInfo.sfId,
-          });
-          if (
-            routerData.msgData.routeResps &&
-            routerData.msgData.routeResps[0]
-          ) {
-            const routerInfo = routerData.msgData.routeResps[0].routes;
-            if (
-              routerInfo.length &&
-              (routerInfo[0].opCode == '50' || routerInfo[0].opCode == '54') &&
-              item.orderStatus == OrderStatus.PendingPickup
-            ) {
-              await this.OrderRep.update(
-                { orderId: item.orderId },
-                {
-                  orderStatus: OrderStatus.WaitingQuote,
-                },
-              );
-              const productCode =
-                'P' +
-                dayjs(new Date()).format('YYMMDDHH') +
-                this.utils.generateRandomValue(8, '1234567890');
-            }
-          }
-        } catch (error) {}
-      }
-    }
-  }
-  async timeoutOrderCancel() {
-    const orderList = await this.OrderRep.find({
-      where: {
-        orderStatus: OrderStatus.PendingPickup,
-      },
-      relations: ['paymentInfo', 'pickupInfo', 'productInfo'],
-    });
-    for (const item of orderList) {
-      try {
-        const timeSplit = item.pickupInfo.pickupTime.split(' ');
-        const dayTime = timeSplit[0];
-        const timeRange = timeSplit[1].split('-')[1] || '00:00';
-        const orderPickup = dayjs(`${dayTime} ${timeRange}`);
-        // 获取当前时间
-        const currentTime = dayjs();
-        // 计算订单创建时间和当前时间的差距（以天为单位）
-        const daysDifference = currentTime.diff(orderPickup, 'hour');
-        // 判断是否超出14天
-        if (daysDifference > 24 * 14) {
-          // 取消顺丰订单
-          try {
-            await this.sfService.cancelSfOrder({
-              orderId: item?.pickupInfo?.sfId,
-            });
-          } catch (error) {}
-          const orderData = await this.OrderRep.update(
-            {
-              orderId: item.orderId,
-            },
-            {
-              orderStatus: OrderStatus.Cancelled,
-            },
-          );
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-  }
-  async sensitiveCheckForExpress() {
-    const orderList = await this.OrderRep.createQueryBuilder('order')
-      .leftJoinAndSelect('order.paymentInfo', 'paymentInfo')
-      .leftJoinAndSelect('order.pickupInfo', 'pickupInfo')
-      .leftJoinAndSelect('order.productInfo', 'productInfo')
-      .where('(order.orderStatus = :status OR order.orderStatus = :status1)', {
-        status: OrderStatus.PendingPickup,
-        status1: OrderStatus.WaitingQuote,
-      })
-      .getMany();
-    if (orderList.length) {
-      for (const item of orderList) {
-        try {
-          const routerData = await this.sfService.getSfRouters({
-            searchType: 2,
-            searchId: item.pickupInfo.sfId,
-          });
-          if (
-            routerData.msgData.routeResps &&
-            routerData.msgData.routeResps[0]
-          ) {
-            const routerInfo = routerData.msgData.routeResps[0].routes;
-            routerInfo.map(async (citem) => {
-              if (
-                citem.remark == '客户已取消寄件' &&
-                item.orderStatus !== OrderStatus.Cancelled
-              ) {
-                // 取消顺丰订单
-                try {
-                  await this.sfService.cancelSfOrder({
-                    orderId: item?.pickupInfo?.sfId,
-                  });
-                } catch (error) {}
-                const orderData = await this.OrderRep.update(
-                  { orderId: item.orderId },
-                  {
-                    orderStatus: OrderStatus.Cancelled,
-                  },
-                );
-              }
-            });
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-    }
-  }
-
-  async getOrderStatus() {
-    const orderList = await this.OrderRep.find({
-      where: {
-        orderStatus: OrderStatus.PendingPickup,
-      },
-    });
-    for (const item of orderList) {
-      try {
-        const orderCreationTime = dayjs(item.createdAt);
-        // 获取当前时间
-        const currentTime = dayjs();
-        // 计算订单创建时间和当前时间的差距（以天为单位）
-        const daysDifference = currentTime.diff(orderCreationTime, 'hour');
-        // 判断是否超出14天
-        if (daysDifference > 24 * 14) {
-          await this.cancelOrder({
-            orderId: item.orderId,
-          });
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-  }
-
   async getstartEndTime(time) {
     // 将时间范围表示法分割为起始时间和结束时间
     const [startDate, timeRange] = time.split(' ');

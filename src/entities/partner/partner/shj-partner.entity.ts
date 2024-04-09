@@ -16,7 +16,7 @@ export default class ShjPartner extends BaseEntity {
   @ApiProperty()
   key: string;
 
-  @Column({ name: 'cer_url', unique: true, comment: '证书路径' })
+  @Column({ name: 'cer_url', comment: '证书路径', nullable: true })
   @ApiProperty()
   cerUrl: string;
 }

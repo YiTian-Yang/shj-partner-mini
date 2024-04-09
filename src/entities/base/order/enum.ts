@@ -24,6 +24,8 @@ export enum OrderChannel {
   Third_Channel,
   // C端蚂蚁回收
   C_Ant,
+  // 分收小程序
+  C_Partner,
 }
 
 export enum OrderType {
@@ -84,6 +86,7 @@ export enum OrderChannelImplication {
   '三方合作平台',
   // C端蚂蚁回收
   '蚂蚁回收',
+  '分收小程序',
 }
 
 export enum OrderTypeImplication {
