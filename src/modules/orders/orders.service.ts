@@ -282,7 +282,7 @@ export class OrdersService {
               orderInfo.paymentInfo.paymentTime = time;
               orderInfo.paymentInfo.payer = '系统';
               orderInfo.paymentInfo.serialNumber = payRes?.order_id;
-              const orderData = await orderTransaction.save(Order, {
+              return await orderTransaction.save(Order, {
                 ...orderInfo,
               });
             } else {
