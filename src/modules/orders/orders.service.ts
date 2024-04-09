@@ -323,7 +323,7 @@ export class OrdersService {
             throw new ApiException(10006);
           }
           orderInfo.orderStatus = OrderStatus.Cancelled;
-          const orderData = await orderTransaction.save(orderInfo);
+          return await orderTransaction.save(orderInfo);
         },
       );
     } catch (error) {
