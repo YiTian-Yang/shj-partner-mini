@@ -339,31 +339,31 @@ export class OrdersService {
       },
       relations: ['paymentInfo', 'pickupInfo', 'productInfo'],
     });
-    const routerData = await this.sfService.getSfRouters({
-      searchType: 2,
-      searchId: data.pickupInfo.sfId,
-    });
+    // const routerData = await this.sfService.getSfRouters({
+    //   searchType: 2,
+    //   searchId: data.pickupInfo.sfId,
+    // });
     const orderData = JSON.parse(JSON.stringify(data));
-    if (routerData.msgData.routeResps && routerData.msgData.routeResps[0]) {
-      orderData.pickupInfo.routerInfo = routerData.msgData.routeResps[0].routes;
-      if (
-        orderData.pickupInfo.routerInfo.length &&
-        orderData.pickupInfo.routerInfo[0].opCode == '50' &&
-        orderData.orderStatus == OrderStatus.PendingPickup
-      ) {
-        orderData.orderStatus = OrderStatus.WaitingQuote;
-        await this.OrderRep.update(
-          { orderId: data.orderId },
-          {
-            orderStatus: OrderStatus.WaitingQuote,
-          },
-        );
-        const productCode =
-          'P' +
-          dayjs(new Date()).format('YYMMDDHH') +
-          this.utils.generateRandomValue(8, '1234567890');
-      }
-    }
+    // if (routerData.msgData.routeResps && routerData.msgData.routeResps[0]) {
+    //   orderData.pickupInfo.routerInfo = routerData.msgData.routeResps[0].routes;
+    //   if (
+    //     orderData.pickupInfo.routerInfo.length &&
+    //     orderData.pickupInfo.routerInfo[0].opCode == '50' &&
+    //     orderData.orderStatus == OrderStatus.PendingPickup
+    //   ) {
+    //     orderData.orderStatus = OrderStatus.WaitingQuote;
+    //     await this.OrderRep.update(
+    //       { orderId: data.orderId },
+    //       {
+    //         orderStatus: OrderStatus.WaitingQuote,
+    //       },
+    //     );
+    //     const productCode =
+    //       'P' +
+    //       dayjs(new Date()).format('YYMMDDHH') +
+    //       this.utils.generateRandomValue(8, '1234567890');
+    //   }
+    // }
     orderData.productInfo.valuationDetails = JSON.parse(
       orderData.productInfo.valuationDetails,
     );
