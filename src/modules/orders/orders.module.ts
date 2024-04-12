@@ -14,6 +14,7 @@ import ShjGoodTypeEntity from 'src/entities/base/good/shj-good-type.entity';
 import { LoggerService } from 'src/shared/logger/logger.service';
 import { SmsService } from 'src/shared/services/sms.service';
 import ShjMiniProgramList from 'src/entities/partner/user/shj-mini-program-list.entity';
+import { AutoFunctionModule } from '../auto-function/auto-function.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import ShjMiniProgramList from 'src/entities/partner/user/shj-mini-program-list.
       ],
       'base',
     ),
+    AutoFunctionModule,
     TypeOrmModule.forFeature([ShjMiniProgramList], 'partner'),
   ],
   controllers: [OrdersController],

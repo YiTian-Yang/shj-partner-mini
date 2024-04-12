@@ -35,6 +35,9 @@ import ShjGoodTypeEntity from 'src/entities/base/good/shj-good-type.entity';
 import { multiply, subtract } from 'mathjs';
 import { PartnerService } from '../partner/partner.service';
 import axios from 'axios';
+import { AutoFunctionService } from '../auto-function/auto-function.service';
+import { PurchaseChannel } from 'src/entities/base/purchase/enum';
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -62,6 +65,7 @@ export class OrdersService {
     private alipayOrderService: AlipayOrderService,
     private logger: LoggerService,
     private partnerService: PartnerService,
+    private autoFunctionService: AutoFunctionService,
   ) {}
   async create(createOrderDto: CreateOrderDto, headers) {
     const token = await this.jwtService.verify(headers.token);
@@ -526,5 +530,14 @@ export class OrdersService {
     startTime = `${startDate} ${startTime}:00`;
     endTime = `${startDate} ${endTime}:00`;
     return { startTime, endTime };
+  }
+
+  //创建入库订单
+  async createPurchase(orderId) {
+    const order = await this.OrderRep.findOne({ where: { orderId } });
+    await this.autoFunctionService.autoCreatePurchase({
+      purchaseChannel: PurchaseChannel.C_Express,
+      orderId: order.id,
+    });
   }
 }

@@ -45,7 +45,15 @@ export class OrdersController {
   @UseGuards(AuthGuard)
   @Post('/agreePrice')
   async agreePrice(@Body() params: ChangeStatusDto, @Headers() header) {
-    const data = this.ordersService.agreePrice(params);
+    const data = await this.ordersService.agreePrice(params);
+    try {
+      await this.ordersService.createPurchase(params.orderId);
+    } catch (error) {
+      this.logger.error({
+        context: '创建采购单失败',
+        error: error,
+      });
+    }
     return data;
   }
 
