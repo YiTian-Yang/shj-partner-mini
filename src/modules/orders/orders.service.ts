@@ -236,7 +236,7 @@ export class OrdersService {
             sfCancel.errorCode == '8018'
           ) {
             orderInfo.orderStatus = OrderStatus.Cancelled;
-            const orderData = await orderTransaction.save(Order, orderInfo);
+            return await orderTransaction.save(Order, orderInfo);
           }
           throw new ApiException(10004);
         },
